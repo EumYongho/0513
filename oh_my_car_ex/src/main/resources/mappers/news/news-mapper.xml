@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper	namespace="com.ezen.realfinal.news.model.mapper.NewsMapper">
+	<resultMap type="News" id="newsResultMap">
+		<id property="newsNo" column="NEWS_NO"/>
+		<result property="title" column="TITLE"/>
+		<result property="link" column="LINK"/>
+		<result property="pubDate" column="PUBDATE"/>
+		<result property="description" column="DESCRIPTION"/>
+		<result property="image" column="IMAGE"/>
+		<result property="category" column="CATEGORY"/>
+		<result property="hit" column="HIT"/>
+		<result property="reply_cnt" column="REPLY_CNT"/>
+		<result property="rownum" column="ROWNUM"/>
+	</resultMap>
+	
+	<resultMap type="News" id="newsDetailResultMap" extends="newsResultMap">
+		<collection property="replies" javaType="arrayList" columnPrefix="R_" resultMap="newsReplyResultMap"/>
+	</resultMap>
+	
+	<resultMap type="NewsReply" id="newsReplyResultMap">
+		<id property="n_reply_no" column="N_REPLY_NO"/>
+		<result property="n_reply_content" column="N_REPLY_CONTENT"/>
+		<result property="newsNo" column="NEWS_NO"/>
+		<result property="n_reply_writer_no" column="N_REPLY_WRITER_NO"/>
+		<result property="n_reply_writer_id" column="USER_ID"/>
+		<result property="n_reply_writer_nickName" column="N_USER_NICKNAME"/>
+		<result property="n_reply_register" column="N_REPLY_REGISTER"/>
+		<result property="n_reply_modify" column="N_REPLY_MODIFY"/>
+	</resultMap>
+
+	<insert id="insertNews"	parameterType="News">
+		INSERT INTO NEWS(		
+			NEWS_NO, TITLE, LINK, PUBDATE, DESCRIPTION, IMAGE, CATEGORY
+		) VALUES(
+			SEQ_NEWS_NO.NEXTVAL, #{title}, #{link}, #{pubDate}, #{description}, 
+			#{image}, #{category}
+		)
+	</insert>
+	
+	<select id="selectNewsList" resultMap="newsResultMap" parameterType="map">
+		SELECT NEWS_NO, TITLE, LINK, PUBDATE, DESCRIPTION, IMAGE, CATEGORY
+		FROM NEWS 
+		WHERE 1=1
+		AND IMAGE IS NOT NULL
+		<if test="category != null">
+			AND CATEGORY LIKE '%'||#{category}||'%'		
+		</if>
+		<if test="titleKeyword != null">
+			AND TITLE LIKE '%'||#{titleKeyword}||'%'		
+		</if>
+		<if test="descriptionKeyword != null">
+			AND description LIKE '%'||#{descriptionKeyword}||'%'		
+		</if>
+		<if test="sortForDate == null">
+			ORDER BY NEWS_NO
+		</if>
+		<if test="sortForDate != null">
+			ORDER BY PUBDATE DESC
+		</if>
+	</select>
+	
+	<!-- 갯수 -->
+	<select id="selectNewsCount" parameterType="map" resultType="int">
+		SELECT COUNT(*)
+		FROM NEWS
+		WHERE 1=1
+			AND IMAGE IS NOT NULL
+		<if test="category != null">
+			AND CATEGORY LIKE '%'||#{category}||'%'		
+		</if>
+		
+		<if test="titleKeyword != null">
+			AND TITLE LIKE '%'||#{titleKeyword}||'%'		
+		</if>
+		<if test="descriptionKeyword != null">
+			AND description LIKE '%'||#{descriptionKeyword}||'%'		
+		</if>
+	</select>
+	
+	<!-- 뉴스 상세 -->
+	<select id="selectByNewsByNo" parameterType="int" resultMap="newsDetailResultMap">
+		SELECT 
+		    N.NEWS_NO, 
+		    N.TITLE, 
+		    N.LINK, 
+		    N.PUBDATE, 
+		    N.DESCRIPTION, 
+		    N.IMAGE, 
+		    N.CATEGORY,
+		    N.HIT,
+		    NR.N_REPLY_NO AS R_N_REPLY_NO, 
+		    NR.N_REPLY_CONTENT AS R_N_REPLY_CONTENT, 
+		    NR.NEWS_NO AS R_NEWS_NO, 
+		    NR.N_WRITER_NO AS R_N_REPLY_WRITER_NO,
+		    U.USER_ID AS R_USER_ID, 
+		    U.USER_NICKNAME AS R_N_USER_NICKNAME, 
+		    NR.N_REPLY_REGISTER AS R_N_REPLY_REGISTER, 
+		    NR.N_REPLY_MODIFY AS R_N_REPLY_MODIFY,
+		    (SELECT COUNT(1) 
+		        FROM NEWS_REPLY NR
+		        WHERE N.NEWS_NO = NR.NEWS_NO ) AS REPLY_CNT
+		FROM NEWS N
+		LEFT OUTER JOIN NEWS_REPLY NR ON(N.NEWS_NO = NR.NEWS_NO)
+		LEFT OUTER JOIN USER_T U ON(NR.N_WRITER_NO = U.USER_NO)
+		WHERE N.NEWS_NO = #{newsNo}
+		ORDER BY NR.N_REPLY_REGISTER ASC
+	</select>
+	
+	<!-- 메인 큰 뉴스 5개 -->
+	<select id="selectNewsForMainBig" resultMap="newsResultMap" parameterType="map">
+		SELECT
+			NEWS_NO, TITLE, PUBDATE, DESCRIPTION, IMAGE, CATEGORY
+		FROM NEWS
+		WHERE NEWS_NO <![CDATA[=]]> 45
+	</select>
+	
+	<!-- 메인 카테고리별 뉴스 1개 -->
+	<select id="selectNewsForMainCategory" resultMap="newsResultMap" parameterType="map">
+		SELECT *
+		FROM (
+		    SELECT 
+		    	NEWS_NO, TITLE, PUBDATE, IMAGE, CATEGORY
+		    FROM NEWS        
+		    WHERE CATEGORY = 'politics' 
+		    AND IMAGE IS NOT NULL
+		    ORDER BY PUBDATE DESC
+		) WHERE ROWNUM <![CDATA[<=]]> 1
+		
+		UNION ALL
+		
+		SELECT *
+		FROM (
+		    SELECT 
+		    	NEWS_NO, TITLE, PUBDATE, IMAGE, CATEGORY
+		    FROM NEWS        
+		    WHERE CATEGORY = 'economy'  
+		    AND IMAGE IS NOT NULL
+		    ORDER BY PUBDATE DESC
+		) WHERE ROWNUM <![CDATA[<=]]> 1
+		
+		UNION ALL
+		
+		SELECT *
+		FROM (
+		    SELECT 
+		    	NEWS_NO, TITLE, PUBDATE, IMAGE, CATEGORY
+		    FROM NEWS        
+		    WHERE CATEGORY = 'opinion'   
+		    AND IMAGE IS NOT NULL
+		    ORDER BY PUBDATE DESC
+		) WHERE ROWNUM <![CDATA[<=]]> 1
+		
+		UNION ALL
+		
+		SELECT *
+		FROM (
+		    SELECT 
+		    	NEWS_NO, TITLE, PUBDATE, IMAGE, CATEGORY
+		    FROM NEWS        
+		    WHERE CATEGORY = 'national'   
+		    AND IMAGE IS NOT NULL
+		    ORDER BY PUBDATE DESC
+		) WHERE ROWNUM <![CDATA[<=]]> 1
+	</select>
+	
+	<!-- 댓글 등록 -->
+	<insert id="insertNewsReply" parameterType="NewsReply">
+		INSERT INTO NEWS_REPLY 
+			(N_REPLY_NO, N_WRITER_NO, NEWS_NO, N_REPLY_CONTENT, N_REPLY_REGISTER, N_REPLY_MODIFY)
+			VALUES(
+				SEQ_REPLY_NO.NEXTVAL, #{n_reply_writer_no}, #{newsNo}, #{n_reply_content}, SYSDATE, SYSDATE)
+	</insert>
+	
+	<!-- 댓글 수정 -->
+	<update id="editNewsReply" parameterType="NewsReply">
+		UPDATE NEWS_REPLY SET N_REPLY_CONTENT = #{n_reply_content}
+		WHERE N_REPLY_NO = #{n_reply_no}
+	</update>
+	
+	<!-- 댓글 삭제 -->
+	<delete id="deleteNewsReply" parameterType="int">
+		DELETE NEWS_REPLY WHERE N_REPLY_NO = #{n_reply_no} 
+	</delete>
+	
+	<!-- 조회수 증가 -->
+	<update id="updateNewsHit" parameterType="News">
+		UPDATE NEWS
+		SET HIT = #{hit}
+		WHERE NEWS_NO = #{newsNo}
+	</update>
+	
+</mapper>
